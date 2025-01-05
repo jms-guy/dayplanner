@@ -1,2 +1,2 @@
-# budgetplanner
-Budget tracker program
+# dayplanner
+Calendar and time management program
