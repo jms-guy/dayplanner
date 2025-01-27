@@ -1,6 +1,5 @@
 import tkinter as tk
 from tkinter import ttk
-from savedata import *
 import os
 
 class MainApp(tk.Tk):
@@ -15,10 +14,15 @@ class MainApp(tk.Tk):
         self.grid_columnconfigure((0, 1), weight=1)
         self.grid_columnconfigure((2, 3), weight=1)
         self.grid_rowconfigure((0, 1), weight=1)
+        self.protocol("WM_DELETE_WINDOW", close_program)
 
         # Menu setup
         self.menu = MainMenu(self)
         self.menu.grid(row=0, column=0, sticky='NW')
+
+        # Search events button -> search for events
+        self.search_events = ttk.Button(self, text='Search Events')
+        self.search_events.grid(row=0, column=3, sticky='NE')
 
         # Calendar setup
         self.calendar = CalendarFrame(self)
@@ -26,7 +30,7 @@ class MainApp(tk.Tk):
 
         # Time of day & event setup
         self.time = TimeFrame(self)
-        self.time.grid(row=1, column=3, sticky='N')
+        self.time.grid(row=1, column=3, sticky='NE')
 
         # Main loop
         self.mainloop()
@@ -70,17 +74,18 @@ class MainMenu(ttk.Frame):
         self.load_profile.grid(row=0, column=6, padx=5)
 
         # Save profile button -> save current profile
-        self.save_profile = ttk.Button(self, text='Save Profile')
+        self.save_profile = ttk.Button(self, text='Save Profile', command=lambda: save_profile(self.current_profile.cget('text').split(': ')[1]))
         self.save_profile.grid(row=0, column=7, padx=5)
 
-        ############### Insert textvariable later#################
         # Current profile label -> display current profile
-        self.current_profile = ttk.Label(self, text='Current Profile:                            ')
-        self.current_profile.grid(row=0, column=8, padx=5)
+        self.current_profile = ttk.Label(self, text='Current Profile: None')
+        self.current_profile.grid(row=0, column=9, padx=5)
 
-        # Search events button -> search for events
-        self.search_events = ttk.Button(self, text='Search Events')
-        self.search_events.grid(row=0, column=9, padx=5)
+        # Delete profile button -> delete current profile
+        self.delete_profile = ttk.Button(self, text='Delete Profile', command=lambda: delete_profile(self, self.current_profile.cget('text').split(': ')[1]))
+        self.delete_profile.grid(row=0, column=8, padx=5)
+
+    
 
     # Open new profile window for button
     def open_new_profile_window(self):
@@ -114,9 +119,10 @@ class MainMenu(ttk.Frame):
         # Populate listbox with profiles
         if os.path.exists('profiles'):
             for profile in os.listdir('profiles'):
-                self.load_profile_listbox.insert(tk.END, profile)
+                profile_name = profile.split('.')[0]
+                self.load_profile_listbox.insert(tk.END, profile_name)
 
-        self.load_profile_button = ttk.Button(self.load_profile_window, text='Load', command=lambda: load_profile(self.load_profile_listbox.get(tk.ACTIVE), self.load_profile_window))
+        self.load_profile_button = ttk.Button(self.load_profile_window, text='Load', command=lambda: load_profile(self, self.load_profile_listbox.get(tk.ACTIVE), self.load_profile_window))
         self.load_profile_button.grid(row=1, column=0, columnspan=2, padx=5, pady=5)
 
 # Calendar frame
@@ -200,14 +206,142 @@ class TimeFrame(ttk.Frame):
         for i in range(24):
             self.hour = ttk.Button(self.timeofday, text=f"{i}:00")
             self.hour.grid(row=i, column=0, ipadx=60, ipady=1)
+            self.hour.bind("<Button-1>", lambda event: self.open_events_window(month, day, self.hours[self.hours.index(event.widget)].cget('text').split(':')[0]))
             self.hours.append(self.hour)
 
+    # Open events window for button
+    def open_events_window(self, month, day, hour):
+        self.events_window = tk.Toplevel(self)
+        self.events_window.title(f'Events for {hour}:00')
+        self.events_window.geometry('300x300')
+        self.events_window.resizable(False, False)
 
-        
+        self.events_label = ttk.Label(self.events_window, text='Enter event:')
+        self.events_label.grid(row=0, column=0, padx=5, pady=5)
 
+        self.events_entry = ttk.Entry(self.events_window, textvariable=tk.StringVar())
+        self.events_entry.grid(row=0, column=1, padx=5, pady=5)
 
+        self.events_button = ttk.Button(self.events_window, text='Save', command=self.save_events) 
+        self.events_button.grid(row=1, column=0, columnspan=2, padx=5, pady=5)
 
-        
+        self.events_listbox = tk.Listbox(self.events_window)
+        self.events_listbox.grid(row=2, column=0, columnspan=2, padx=5, pady=5)
+
+        self.events_delete_button = ttk.Button(self.events_window, text='Delete', command=self.delete_events)
+        self.events_delete_button.grid(row=3, column=0, columnspan=2, padx=5, pady=5)
+
+        self.events_close_button = ttk.Button(self.events_window, text='Close', command=self.events_window.destroy)
+        self.events_close_button.grid(row=4, column=0, columnspan=2, padx=5, pady=5)
+
+        self.events_window.protocol("WM_DELETE_WINDOW", lambda: self.finalize_event_changes(month, day, hour))
+
+    def save_events(self):
+        self.events_listbox.insert(tk.END, self.events_entry.get())
+        self.events_entry.delete(0, tk.END)
+
+    def delete_events(self):
+        self.events_listbox.delete(tk.ACTIVE)
+
+    def finalize_event_changes(self, month, day, hour):
+        with open('tempchanges.lst', 'a') as file:
+            for event in self.events_listbox.get(0, tk.END):
+                file.write(f'{month}+{day}+{hour}+{event}\n')
+        self.events_window.destroy()
+
+###### File management of profile and event data ######
+
+# Creating a new profile
+def new_profile(profile_name, window):
+    if not os.path.exists('profiles'):
+        os.makedirs('profiles')
+    
+    profile_name = profile_name.strip().capitalize()
+    # Exception handling
+    if profile_name == '':
+        error_window = tk.Toplevel()
+        error_window.title('Error')
+        error_window.geometry('200x100')
+        error_window.resizable(False, False)
+
+        error_label = ttk.Label(error_window, text='Profile name cannot be empty')
+        error_label.pack(pady=10)
+    elif f'{profile_name}.lst' in os.listdir('profiles'):
+        error_window = tk.Toplevel()
+        error_window.title('Error')
+        error_window.geometry('200x100')
+        error_window.resizable(False, False)
+
+        error_label = ttk.Label(error_window, text='Profile name already exists')
+        error_label.pack(pady=10)
+    # Create new profile file in profiles folder
+    else:
+        with open(f'profiles/{profile_name}.lst', 'w') as file:
+            file.write('')
+        window.destroy()
+
+# Loading a profile from previously created
+def load_profile(master_window, profile_name, window):
+    if not os.path.exists('profiles'):
+        error_window = tk.Toplevel()   
+        error_window.title('Error')
+        error_window.geometry('200x100')
+        error_window.resizable(False, False)
+
+        error_label = ttk.Label(error_window, text='Profile folder not found')
+        error_label.pack(pady=10)
+
+    elif f'{profile_name}.lst' not in os.listdir('profiles'):
+        error_window = tk.Toplevel()
+        error_window.title('Error')
+        error_window.geometry('200x100')
+        error_window.resizable(False, False)
+
+        error_label = ttk.Label(error_window, text='Profile not found')
+        error_label.pack(pady=10)
+
+    # Load the profile data from save file and import data
+    else:
+        with open(f'profiles/{profile_name}.lst', 'r') as file:
+            pass
+        with open('tempchanges.lst', 'w') as file:
+            file.write('')
+        window.destroy()
+        master_window.current_profile.config(text=f'Current Profile: {profile_name}')
+
+def save_profile(profile_name):
+    with open(f'profiles/{profile_name}.lst', 'a') as file:
+        with open('tempchanges.lst', 'r') as temp_file:
+            for line in temp_file:
+                if line != '':
+                    file.write(line)
+        os.remove('tempchanges.lst')
+ 
+ # Deletes profile
+def delete_profile(parent, profile_name):
+    confirmation_window = tk.Toplevel()
+    confirmation_window.title('Confirmation')
+    confirmation_window.geometry('300x200')
+    confirmation_window.resizable(False, False)
+
+    confirmation_label = ttk.Label(confirmation_window, text=f'Are you sure you want to delete {profile_name}?')
+    confirmation_label.pack(pady=10)
+
+    confirmation_yes = ttk.Button(confirmation_window, text='Yes', command=lambda: delete_profile_confirm(parent, profile_name, confirmation_window))
+    confirmation_yes.pack(pady=10)
+    confirmation_no = ttk.Button(confirmation_window, text='No', command=confirmation_window.destroy)
+    confirmation_no.pack(pady=10)
+
+def delete_profile_confirm(parent, profile_name, window):
+    os.remove(f'profiles/{profile_name}.lst')
+    window.destroy()
+    parent.current_profile.config(text='Current Profile: None')
+
+# Closing the program and deleting temp files
+def close_program():
+    if os.path.exists('tempchanges.lst'):
+        os.remove('tempchanges.lst')
+    exit()
 
 # Main loop
 
