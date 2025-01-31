@@ -14,7 +14,7 @@ class MainApp(tk.Tk):
         self.grid_columnconfigure((0, 1), weight=1)
         self.grid_columnconfigure((2, 3), weight=1)
         self.grid_rowconfigure((0, 1), weight=1)
-        self.protocol("WM_DELETE_WINDOW", close_program)
+        self.protocol("WM_DELETE_WINDOW", self.close_program)
 
         # Menu setup
         self.menu = MainMenu(self)
@@ -415,10 +415,11 @@ def delete_profile_confirm(parent, profile_name, window):
     parent.current_profile.config(text='Current Profile: None')
 
 # Closing the program and deleting temp files
-def close_program():
+def close_program(self):
     if os.path.exists('tempchanges.lst'):
         os.remove('tempchanges.lst')
-    exit()
+    self.quit()
+    self.destroy()
 
 # Main loop
 
