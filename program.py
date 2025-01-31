@@ -20,17 +20,13 @@ class MainApp(tk.Tk):
         self.menu = MainMenu(self)
         self.menu.grid(row=0, column=0, sticky='NW')
 
-        # Search events button -> search for events
-        self.search_events = ttk.Button(self, text='Search Events')
-        self.search_events.grid(row=0, column=3, sticky='NE')
-
         # Calendar setup
         self.calendar = CalendarFrame(self)
         self.calendar.grid(row=1, column=0, sticky='NW')
 
         # Time of day & event setup
         self.time = TimeFrame(self)
-        self.time.grid(row=1, column=3, sticky='NE')
+        self.time.grid(row=1, column=3, sticky='N')
 
         # Main loop
         self.mainloop()
@@ -58,7 +54,7 @@ class MainMenu(ttk.Frame):
         s.grid(row=1, column=0, columnspan=2, sticky='EW')
 
         # Change month button -> change month in calendar
-        self.change_month = ttk.Button(self, text='Change Month', command=lambda: parent.calendar.main_calendar_change(parent, self.months.get(), self.years.get()))
+        self.change_month = ttk.Button(self, text='Choose Month', command=lambda: parent.calendar.main_calendar_change(parent, self.months.get(), self.years.get()))
         self.change_month.grid(row=0, column=2, padx=5)
 
         # Add blank space
@@ -85,8 +81,6 @@ class MainMenu(ttk.Frame):
         self.delete_profile = ttk.Button(self, text='Delete Profile', command=lambda: delete_profile(self, self.current_profile.cget('text').split(': ')[1]))
         self.delete_profile.grid(row=0, column=8, padx=5)
 
-    
-
     # Open new profile window for button
     def open_new_profile_window(self):
         self.new_profile_window = tk.Toplevel(self)
@@ -107,7 +101,7 @@ class MainMenu(ttk.Frame):
     def open_load_profile_window(self):
         self.load_profile_window = tk.Toplevel(self)
         self.load_profile_window.title('Load Profile')
-        self.load_profile_window.geometry('300x300')
+        self.load_profile_window.geometry('300x250')
         self.load_profile_window.resizable(False, False)
 
         self.load_profile_label = ttk.Label(self.load_profile_window, text='Current profiles:')
@@ -140,45 +134,73 @@ class CalendarFrame(ttk.Frame):
 
     # Function to change calendar frames based on month and year
     def main_calendar_change(self, parent, month, year):
+
+        style = ttk.Style()
+        style.configure('Normal.TButton', padding=5)
+        style.configure('Event.TButton', padding=5, background='lightblue')
+        style.map('Event.TButton', background=[('active', 'lightblue')])
+
+        if not os.path.exists('tempchanges.lst'):
+            error_window = tk.Toplevel()
+            error_window.title('Error')
+            error_window.geometry('200x100')
+            error_window.resizable(False, False)
+
+            error_label = ttk.Label(error_window, text='Please load a profile')
+            error_label.pack(pady=10)
         
-        # Destroys previous month's buttons
-        self.calendarbox.config(text=f"{month} {year}")
-        if len(self.days_of_month) > 0:
-            for day in self.days_of_month:
-                day.destroy()
-            self.days_of_month.clear()
-        
-        # Get number of days in month
-        num_of_days = 0
-        if month in ['January', 'March', 'May', 'July', 'August', 'October', 'December']:
-            num_of_days = 31
-        elif month in ['April', 'June', 'September', 'November']:
-            num_of_days = 30
-        elif month == 'February' and int(year) % 4 == 0:
-            num_of_days = 29
         else:
-            num_of_days = 28
-        
-         # Create buttons for each day in the calendar
-        for i in range(1, num_of_days+1):
-            day_button = ttk.Button(self.calendarbox, text=f"{i}")
-            if i <= 7:
-                day_button.grid(row=0, column=i-1, ipadx=36, ipady=58)
-            elif i <= 14:
-                day_button.grid(row=1, column=i-8, ipadx=36, ipady=58)
-            elif i <= 21:
-                day_button.grid(row=2, column=i-15, ipadx=36, ipady=58)
-            elif i <= 28:
-                day_button.grid(row=3, column=i-22, ipadx=36, ipady=58)
-            elif i <= 31:
-                day_button.grid(row=4, column=i-29, ipadx=36, ipady=58)
-            day_button.bind("<Button-1>", lambda event, month=month, day=day_button['text']: parent.time.event_button_creation(month, day))
-            self.days_of_month.append(day_button)
+            # Destroys previous month's buttons
+            self.calendarbox.config(text=f"{month} {year}")
+            if len(self.days_of_month) > 0:
+                for day in self.days_of_month:
+                    day.destroy()
+                self.days_of_month.clear()
+            
+            # Get number of days in month
+            num_of_days = 0
+            if month in ['January', 'March', 'May', 'July', 'August', 'October', 'December']:
+                num_of_days = 31
+            elif month in ['April', 'June', 'September', 'November']:
+                num_of_days = 30
+            elif month == 'February' and int(year) % 4 == 0:
+                num_of_days = 29
+            else:
+                num_of_days = 28
+            
+            # Create buttons for each day in the calendar
+            for i in range(1, num_of_days+1):
+                valid_monthly_events = []
+                if len(profile_event_list) > 0:
+                    for event in profile_event_list:
+                        event_data = event.split('-', 3)
+                        if (event_data[0] != year) or (event_data[1] != month):
+                            continue
+                        else:
+                            if event_data[2] == str(i):
+                                valid_monthly_events.append(event_data[3])
+                
+                if len(valid_monthly_events) != 0:
+                    day_button = ttk.Button(self.calendarbox, text=str(i), style='Event.TButton')
+                else:
+                    day_button = ttk.Button(self.calendarbox, text=str(i), style='Normal.TButton')
 
-        # Add event button to each day
-        for day in self.days_of_month:
-            day.bind("<Button-1>", lambda event, month=month, day=day['text']: parent.time.event_button_creation(month, day))
+                if i <= 7:
+                    day_button.grid(row=0, column=i-1, ipadx=34, ipady=57)
+                elif i <= 14:
+                    day_button.grid(row=1, column=i-8, ipadx=34, ipady=57)
+                elif i <= 21:
+                    day_button.grid(row=2, column=i-15, ipadx=34, ipady=57)
+                elif i <= 28:
+                    day_button.grid(row=3, column=i-22, ipadx=34, ipady=57)
+                elif i <= 31:
+                    day_button.grid(row=4, column=i-29, ipadx=34, ipady=57)
+                day_button.bind("<Button-1>", lambda event, year=year, month=month, day=day_button['text']: parent.time.event_button_creation(year, month, day))
+                self.days_of_month.append(day_button)
 
+            # Add event button to each day
+            for day in self.days_of_month:
+                day.bind("<Button-1>", lambda event, month=month, day=day['text']: parent.time.event_button_creation(year, month, day))
 
 # Time of day & event frame
 class TimeFrame(ttk.Frame):
@@ -192,9 +214,13 @@ class TimeFrame(ttk.Frame):
         self.timeofday.grid_propagate(False)
 
         self.hours = []
+   
+    def event_button_creation(self, year, month, day):
 
-    
-    def event_button_creation(self, month, day):
+        style = ttk.Style()
+        style.configure('Normal.TButton')
+        style.configure('Event.TButton', background='lightblue')
+        style.map('Event.TButton', background=[('active', 'lightblue')])
 
         self.timeofday.config(text=f"Events for {month} {day}")
         #Destroy previous event buttons
@@ -203,20 +229,34 @@ class TimeFrame(ttk.Frame):
                 hour.destroy()
 
         #Create buttons for each hour of the day
-        for i in range(24):
-            self.hour = ttk.Button(self.timeofday, text=f"{i}:00")
-            self.hour.grid(row=i, column=0, ipadx=60, ipady=1)
-            self.hour.bind("<Button-1>", lambda event: self.open_events_window(month, day, self.hours[self.hours.index(event.widget)].cget('text').split(':')[0]))
+        for i in range(1, 24):
+            valid_events = []
+            if len(profile_event_list) > 0:
+                for event in profile_event_list:
+                    event_data = event.split('-', 4)
+                    if (event_data[0] != year) or (event_data[1] != month) or (event_data[2] != day):
+                        continue
+                    else:
+                        if event_data[3] == str(i):
+                            valid_events.append(event_data[4])
+            
+            if len(valid_events) > 0:
+                self.hour = ttk.Button(self.timeofday, text=f"{i}:00", style='Event.TButton')
+            else:
+                self.hour = ttk.Button(self.timeofday, text=f"{i}:00", style='Normal.TButton')
+
+            self.hour.grid(row=i, column=0, ipadx=60)
+            self.hour.bind("<Button-1>", lambda event: self.open_events_window(year, month, day, self.hours[self.hours.index(event.widget)].cget('text').split(':')[0]))
             self.hours.append(self.hour)
 
     # Open events window for button
-    def open_events_window(self, month, day, hour):
+    def open_events_window(self, year, month, day, hour):
         self.events_window = tk.Toplevel(self)
         self.events_window.title(f'Events for {hour}:00')
-        self.events_window.geometry('300x300')
+        self.events_window.geometry('300x350')
         self.events_window.resizable(False, False)
 
-        self.events_label = ttk.Label(self.events_window, text='Enter event:')
+        self.events_label = ttk.Label(self.events_window, text='Events:')
         self.events_label.grid(row=0, column=0, padx=5, pady=5)
 
         self.events_entry = ttk.Entry(self.events_window, textvariable=tk.StringVar())
@@ -226,28 +266,47 @@ class TimeFrame(ttk.Frame):
         self.events_button.grid(row=1, column=0, columnspan=2, padx=5, pady=5)
 
         self.events_listbox = tk.Listbox(self.events_window)
-        self.events_listbox.grid(row=2, column=0, columnspan=2, padx=5, pady=5)
+        self.events_listbox.grid(row=2, column=1, columnspan=2, padx=5, pady=5)
+        self.get_saved_events(year, month, day, hour)
 
         self.events_delete_button = ttk.Button(self.events_window, text='Delete', command=self.delete_events)
-        self.events_delete_button.grid(row=3, column=0, columnspan=2, padx=5, pady=5)
+        self.events_delete_button.grid(row=3, column=1, columnspan=2, padx=5, pady=5)
 
-        self.events_close_button = ttk.Button(self.events_window, text='Close', command=self.events_window.destroy)
-        self.events_close_button.grid(row=4, column=0, columnspan=2, padx=5, pady=5)
+        self.events_window.protocol("WM_DELETE_WINDOW", lambda: self.finalize_event_changes(year, month, day, hour))
 
-        self.events_window.protocol("WM_DELETE_WINDOW", lambda: self.finalize_event_changes(month, day, hour))
+    def get_saved_events(self, year, month, day, hour):
+        if len(profile_event_list) > 0:
+            events = []
+            for event in profile_event_list:
+                event_data = event.split('-')
+                if (event_data[0] == str(year)) and (event_data[1] ==str(month)) and (event_data[2] == str(day)) and (event_data[3] == str(hour)):
+                    events.append(event_data[4])
+            if len(events) > 0:
+                for event in events:
+                    self.events_listbox.insert(tk.END, event)
 
     def save_events(self):
         self.events_listbox.insert(tk.END, self.events_entry.get())
         self.events_entry.delete(0, tk.END)
 
     def delete_events(self):
+        selected_event = self.events_listbox.get(tk.ACTIVE)
+        if selected_event:
+            for event in profile_event_list:
+                event_data = event.split('-')
+                if event_data[4] == selected_event:
+                    profile_event_list.remove(event)
+                    break
         self.events_listbox.delete(tk.ACTIVE)
 
-    def finalize_event_changes(self, month, day, hour):
-        with open('tempchanges.lst', 'a') as file:
+    def finalize_event_changes(self, year, month, day, hour):
+        with open('tempchanges.lst', 'a+') as file:
             for event in self.events_listbox.get(0, tk.END):
-                file.write(f'{month}+{day}+{hour}+{event}\n')
+                file.write(f'{year}-{month}-{day}-{hour}-{event}\n')
         self.events_window.destroy()
+
+
+
 
 ###### File management of profile and event data ######
 
@@ -266,7 +325,7 @@ def new_profile(profile_name, window):
 
         error_label = ttk.Label(error_window, text='Profile name cannot be empty')
         error_label.pack(pady=10)
-    elif f'{profile_name}.lst' in os.listdir('profiles'):
+    elif f'{profile_name}' in os.listdir('profiles'):
         error_window = tk.Toplevel()
         error_window.title('Error')
         error_window.geometry('200x100')
@@ -274,7 +333,7 @@ def new_profile(profile_name, window):
 
         error_label = ttk.Label(error_window, text='Profile name already exists')
         error_label.pack(pady=10)
-    # Create new profile file in profiles folder
+    # Creates new profile dictionary on a global scale
     else:
         with open(f'profiles/{profile_name}.lst', 'w') as file:
             file.write('')
@@ -303,19 +362,37 @@ def load_profile(master_window, profile_name, window):
     # Load the profile data from save file and import data
     else:
         with open(f'profiles/{profile_name}.lst', 'r') as file:
-            pass
+            global profile_event_list
+            profile_event_list = [line.strip() for line in file if line.strip()]
         with open('tempchanges.lst', 'w') as file:
             file.write('')
         window.destroy()
         master_window.current_profile.config(text=f'Current Profile: {profile_name}')
 
 def save_profile(profile_name):
-    with open(f'profiles/{profile_name}.lst', 'a') as file:
+    if profile_name != 'None':
+        # Read new events from temp file
         with open('tempchanges.lst', 'r') as temp_file:
-            for line in temp_file:
-                if line != '':
-                    file.write(line)
+            temp_events = set(temp_file.read().splitlines())
+            
+        # Combine with existing profile_event_list
+        all_events = set(profile_event_list)  
+        all_events.update(temp_events)        
+        
+        # Write everything back to main file
+        with open(f'profiles/{profile_name}.lst', 'w') as file:
+            for event in sorted(all_events): 
+                file.write(event + '\n')
+                
         os.remove('tempchanges.lst')
+    else:
+        error_message = tk.Toplevel()
+        error_message.title('Error')
+        error_message.geometry('300x50')
+        error_message.resizable(False, False)
+
+        error_label = ttk.Label(error_message, text='No profile selected')
+        error_label.pack(pady=5)
  
  # Deletes profile
 def delete_profile(parent, profile_name):
