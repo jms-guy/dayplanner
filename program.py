@@ -31,6 +31,13 @@ class MainApp(tk.Tk):
         # Main loop
         self.mainloop()
 
+        # Closing the program and deleting temp files
+    def close_program(self):
+        if os.path.exists('tempchanges.lst'):
+            os.remove('tempchanges.lst')
+        self.quit()
+        self.destroy()
+
 # Menu frame
 class MainMenu(ttk.Frame):
     def __init__(self, parent):
@@ -413,13 +420,6 @@ def delete_profile_confirm(parent, profile_name, window):
     os.remove(f'profiles/{profile_name}.lst')
     window.destroy()
     parent.current_profile.config(text='Current Profile: None')
-
-# Closing the program and deleting temp files
-def close_program(self):
-    if os.path.exists('tempchanges.lst'):
-        os.remove('tempchanges.lst')
-    self.quit()
-    self.destroy()
 
 # Main loop
 
